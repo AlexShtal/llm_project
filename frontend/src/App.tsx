@@ -1,14 +1,21 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent, PointerEvent } from "react";
 import {
   addModel,
+  ApiChat,
+  createChat,
+  deleteChat,
+  deleteModel,
   deleteUser,
   generateText,
+  getChats,
   getMyModels,
   getProfile,
   login,
   ModelInfo,
   register,
   setCurrentModel,
+  updateChat,
   UserProfile,
 } from "./api";
 
@@ -22,12 +29,13 @@ type Chat = {
   id: number;
   title: string;
   messages: ChatMessage[];
+  updatedAt?: string;
 };
 
 const welcomeMessage: ChatMessage = {
-  id: 1,
+  id: 0,
   role: "assistant",
-  text: "Привет! Я интерфейс для твоего LLM backend. Выбери модель в настройках и напиши сообщение.",
+  text: "Привет! Выбери модель в настройках и напиши сообщение. Чаты теперь сохраняются на сервере.",
 };
 
 const examplePrompts = [
@@ -36,12 +44,6 @@ const examplePrompts = [
   "Помоги улучшить промпт для генерации технического текста.",
 ];
 
-const defaultChat: Chat = {
-  id: 1,
-  title: "Новый чат",
-  messages: [welcomeMessage],
-};
-
 export function App() {
   const [token, setToken] = useState(
     () => localStorage.getItem("llm-token") ?? "",
@@ -49,13 +51,15 @@ export function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [currentModelId, setCurrentModelId] = useState<number | null>(null);
-  const [chats, setChats] = useState<Chat[]>([defaultChat]);
-  const [activeChatId, setActiveChatId] = useState(defaultChat.id);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
   const [settingsError, setSettingsError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authForm, setAuthForm] = useState({
     email: "",
@@ -69,10 +73,15 @@ export function App() {
   });
 
   const activeChat = useMemo(
-    () => chats.find((chat) => chat.id === activeChatId) ?? chats[0],
+    () => chats.find((chat) => chat.id === activeChatId) ?? chats[0] ?? null,
     [activeChatId, chats],
   );
-  const canSend = prompt.trim().length > 0 && !isLoading && Boolean(token);
+  const activeMessages =
+    activeChat && activeChat.messages.length > 0
+      ? activeChat.messages
+      : [welcomeMessage];
+  const canSend =
+    prompt.trim().length > 0 && !isLoading && Boolean(token) && Boolean(activeChat);
   const selectedModel = models.find((model) => model.id === currentModelId);
 
   useEffect(() => {
@@ -91,14 +100,30 @@ export function App() {
   }, [token]);
 
   async function loadUserData(activeToken = token) {
-    const [profileData, modelsData] = await Promise.all([
+    const [profileData, modelsData, chatData] = await Promise.all([
       getProfile(activeToken),
       getMyModels(activeToken),
+      getChats(activeToken),
     ]);
 
+    const mappedChats = chatData.map(mapApiChat);
     setProfile(profileData);
     setModels(modelsData.models);
     setCurrentModelId(modelsData.currentModelId);
+
+    if (mappedChats.length > 0) {
+      setChats(mappedChats);
+      setActiveChatId((currentId) =>
+        currentId && mappedChats.some((chat) => chat.id === currentId)
+          ? currentId
+          : mappedChats[0].id,
+      );
+      return;
+    }
+
+    const firstChat = mapApiChat(await createChat(activeToken));
+    setChats([firstChat]);
+    setActiveChatId(firstChat.id);
   }
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
@@ -126,7 +151,7 @@ export function App() {
     event.preventDefault();
 
     const text = prompt.trim();
-    if (!text || isLoading || !token) {
+    if (!text || isLoading || !token || !activeChat) {
       return;
     }
 
@@ -138,9 +163,7 @@ export function App() {
 
     updateActiveChat((chat) => ({
       ...chat,
-      title: chat.messages.some((message) => message.role === "user")
-        ? chat.title
-        : text.slice(0, 42),
+      title: hasUserMessages(chat) ? chat.title : makeTitle(text),
       messages: [...chat.messages, userMessage],
     }));
     setPrompt("");
@@ -148,17 +171,13 @@ export function App() {
     setIsLoading(true);
 
     try {
-      const answer = await generateText(text, token);
-      const assistantMessage: ChatMessage = {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: answer,
-      };
-
-      updateActiveChat((chat) => ({
-        ...chat,
-        messages: [...chat.messages, assistantMessage],
-      }));
+      const result = await generateText(
+        text,
+        token,
+        activeChat.id,
+        currentModelId,
+      );
+      upsertChat(mapApiChat(result.chat));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -178,17 +197,95 @@ export function App() {
     );
   }
 
-  function startNewChat() {
-    const chat: Chat = {
-      id: Date.now(),
-      title: "Новый чат",
-      messages: [{ ...welcomeMessage, id: Date.now() + 1 }],
-    };
+  function upsertChat(chat: Chat) {
+    setChats((currentChats) => {
+      const exists = currentChats.some((currentChat) => currentChat.id === chat.id);
+      const nextChats = exists
+        ? currentChats.map((currentChat) =>
+            currentChat.id === chat.id ? chat : currentChat,
+          )
+        : [chat, ...currentChats];
 
-    setChats((currentChats) => [chat, ...currentChats]);
+      return nextChats.sort((a, b) =>
+        String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
+      );
+    });
     setActiveChatId(chat.id);
-    setPrompt("");
+  }
+
+  async function startNewChat() {
+    if (!token || isCreatingChat) {
+      return;
+    }
+
+    setIsCreatingChat(true);
     setError("");
+
+    try {
+      const chat = mapApiChat(await createChat(token));
+      setChats((currentChats) => [chat, ...currentChats]);
+      setActiveChatId(chat.id);
+      setPrompt("");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось создать чат",
+      );
+    } finally {
+      setIsCreatingChat(false);
+    }
+  }
+
+  async function handleDeleteChat(chatId: number) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      await deleteChat(token, chatId);
+      const remainingChats = chats.filter((chat) => chat.id !== chatId);
+
+      if (remainingChats.length === 0) {
+        const nextChat = mapApiChat(await createChat(token));
+        setChats([nextChat]);
+        setActiveChatId(nextChat.id);
+        return;
+      }
+
+      setChats(remainingChats);
+      if (activeChatId === chatId) {
+        setActiveChatId(remainingChats[0].id);
+      }
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось удалить чат",
+      );
+    }
+  }
+
+  async function handleRenameChat() {
+    if (!token || !activeChat) {
+      return;
+    }
+
+    const title = window.prompt("Новое название чата", activeChat.title)?.trim();
+    if (!title || title === activeChat.title) {
+      return;
+    }
+
+    try {
+      const updated = mapApiChat(await updateChat(token, activeChat.id, title));
+      upsertChat(updated);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось переименовать чат",
+      );
+    }
   }
 
   function useExamplePrompt(example: string) {
@@ -201,6 +298,8 @@ export function App() {
     setToken("");
     setProfile(null);
     setModels([]);
+    setChats([]);
+    setActiveChatId(null);
     setCurrentModelId(null);
     setIsSettingsOpen(false);
   }
@@ -227,9 +326,9 @@ export function App() {
 
     try {
       await addModel(token, {
-        name: newModel.name,
-        apiOrIP: newModel.apiOrIP,
-        description: newModel.description || undefined,
+        name: newModel.name.trim(),
+        apiOrIP: newModel.apiOrIP.trim(),
+        description: newModel.description.trim() || undefined,
       });
       setNewModel({ name: "", apiOrIP: "", description: "" });
       await loadUserData();
@@ -238,6 +337,21 @@ export function App() {
         requestError instanceof Error
           ? requestError.message
           : "Не удалось добавить модель",
+      );
+    }
+  }
+
+  async function handleDeleteModel(modelId: number) {
+    setSettingsError("");
+
+    try {
+      await deleteModel(token, modelId);
+      await loadUserData();
+    } catch (requestError) {
+      setSettingsError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось удалить модель",
       );
     }
   }
@@ -254,8 +368,6 @@ export function App() {
     try {
       await deleteUser(token);
       handleLogout();
-      setChats([defaultChat]);
-      setActiveChatId(defaultChat.id);
     } catch (requestError) {
       setSettingsError(
         requestError instanceof Error
@@ -263,6 +375,25 @@ export function App() {
           : "Не удалось удалить пользователя",
       );
     }
+  }
+
+  function handleSidebarResizeStart(event: PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+
+    function handlePointerMove(moveEvent: globalThis.PointerEvent) {
+      const nextWidth = Math.min(460, Math.max(220, startWidth + moveEvent.clientX - startX));
+      setSidebarWidth(nextWidth);
+    }
+
+    function handlePointerUp() {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
   }
 
   if (!token) {
@@ -336,13 +467,18 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className="app-shell"
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+    >
       <aside className="sidebar" aria-label="Навигация по чатам">
         <div className="brand">
           <span className="brand-mark">AI</span>
           <div>
             <strong>LLM Project</strong>
-            <span>{selectedModel?.name ?? "Модель не выбрана"}</span>
+            <span title={selectedModel?.name ?? "Модель не выбрана"}>
+              {selectedModel?.name ?? "Модель не выбрана"}
+            </span>
           </div>
         </div>
 
@@ -350,6 +486,7 @@ export function App() {
           className="new-chat-button"
           type="button"
           onClick={startNewChat}
+          disabled={isCreatingChat}
         >
           <span aria-hidden="true">+</span>
           Новый чат
@@ -364,8 +501,28 @@ export function App() {
               key={chat.id}
               type="button"
               onClick={() => setActiveChatId(chat.id)}
+              title={chat.title}
             >
               <span>{chat.title}</span>
+              <span
+                className="chat-delete"
+                role="button"
+                tabIndex={0}
+                aria-label="Удалить чат"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleDeleteChat(chat.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void handleDeleteChat(chat.id);
+                  }
+                }}
+              >
+                x
+              </span>
             </button>
           ))}
         </nav>
@@ -380,7 +537,7 @@ export function App() {
                   aria-label="Закрыть настройки"
                   onClick={() => setIsSettingsOpen(false)}
                 >
-                  ?
+                  x
                 </button>
               </div>
 
@@ -404,6 +561,23 @@ export function App() {
                 </select>
               </label>
 
+              {models.length > 0 && (
+                <div className="model-list" aria-label="Добавленные модели">
+                  {models.map((model) => (
+                    <div className="model-item" key={model.id}>
+                      <span title={model.name}>{model.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteModel(model.id)}
+                        aria-label={`Удалить модель ${model.name}`}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <form className="model-form" onSubmit={handleAddModel}>
                 <label>
                   Новая модель
@@ -412,7 +586,7 @@ export function App() {
                     onChange={(event) =>
                       setNewModel({ ...newModel, name: event.target.value })
                     }
-                    placeholder="Название"
+                    placeholder="Название модели, например llama3"
                     required
                   />
                 </label>
@@ -421,7 +595,7 @@ export function App() {
                   onChange={(event) =>
                     setNewModel({ ...newModel, apiOrIP: event.target.value })
                   }
-                  placeholder="API или IP"
+                  placeholder="http://localhost:11434 или /v1/chat/completions"
                   required
                 />
                 <input
@@ -474,6 +648,13 @@ export function App() {
             </span>
           </button>
         </div>
+        <div
+          className="sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Изменить ширину списка чатов"
+          onPointerDown={handleSidebarResizeStart}
+        />
       </aside>
 
       <section className="chat-panel" aria-label="Чат с языковой моделью">
@@ -485,17 +666,27 @@ export function App() {
           >
             +
           </button>
-          <div>
+          <div className="chat-title-wrap">
             <p className="eyebrow">Текущий чат</p>
-            <h1>{activeChat.title}</h1>
+            <h1 title={activeChat?.title}>{activeChat?.title ?? "Новый чат"}</h1>
           </div>
-          <span className={isLoading ? "status loading" : "status"}>
-            {isLoading ? "Генерация" : "Готов"}
-          </span>
+          <div className="chat-actions">
+            <button
+              className="secondary-light-button"
+              type="button"
+              onClick={handleRenameChat}
+              disabled={!activeChat}
+            >
+              Переименовать
+            </button>
+            <span className={isLoading ? "status loading" : "status"}>
+              {isLoading ? "Генерация" : "Готов"}
+            </span>
+          </div>
         </header>
 
         <div className="messages" aria-live="polite">
-          {activeChat.messages.map((message) => (
+          {activeMessages.map((message) => (
             <article className={`message ${message.role}`} key={message.id}>
               <div className="avatar" aria-hidden="true">
                 {message.role === "assistant" ? "AI" : "Вы"}
@@ -527,7 +718,7 @@ export function App() {
         </div>
 
         <div className="composer-area">
-          {activeChat.messages.length === 1 && (
+          {activeMessages.length === 1 && (
             <div className="suggestions" aria-label="Примеры запросов">
               {examplePrompts.map((example) => (
                 <button
@@ -552,16 +743,43 @@ export function App() {
               name="prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Напишите сообщение..."
+              placeholder={
+                selectedModel
+                  ? "Напишите сообщение..."
+                  : "Сначала добавьте и выберите модель в настройках"
+              }
               rows={1}
-              disabled={isLoading}
+              disabled={isLoading || !activeChat}
             />
             <button type="submit" disabled={!canSend} aria-label="Отправить">
-              <span aria-hidden="true">?</span>
+              <span aria-hidden="true">-&gt;</span>
             </button>
           </form>
         </div>
       </section>
     </main>
   );
+}
+
+function mapApiChat(chat: ApiChat): Chat {
+  return {
+    id: chat.id,
+    title: chat.title?.trim() || "Новый чат",
+    updatedAt: chat.updatedAt,
+    messages: chat.messages
+      .filter((message) => message.role === "USER" || message.role === "ASSISTANT")
+      .map((message) => ({
+        id: message.id,
+        role: message.role === "ASSISTANT" ? "assistant" : "user",
+        text: message.content,
+      })),
+  };
+}
+
+function hasUserMessages(chat: Chat) {
+  return chat.messages.some((message) => message.role === "user");
+}
+
+function makeTitle(text: string) {
+  return text.length > 42 ? `${text.slice(0, 42)}...` : text;
 }
