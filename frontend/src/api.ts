@@ -62,7 +62,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const message =
       typeof data === "object" && data !== null && "message" in data
         ? String((data as { message: unknown }).message)
-        : `Ошибка запроса: ${response.status}`;
+        : `РћС€РёР±РєР° Р·Р°РїСЂРѕСЃР°: ${response.status}`;
 
     throw new Error(message);
   }

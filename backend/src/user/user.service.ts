@@ -22,7 +22,7 @@ export class UserService {
     });
 
     if (existing) {
-      throw new ConflictException('Модель с таким названием уже существует');
+      throw new ConflictException('РњРѕРґРµР»СЊ СЃ С‚Р°РєРёРј РЅР°Р·РІР°РЅРёРµРј СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚');
     }
 
     return this.prisma.model.create({
@@ -56,7 +56,7 @@ export class UserService {
 
     if (!model) {
       throw new NotFoundException(
-        'Модель не найдена, сначала добавьте модель.',
+        'РњРѕРґРµР»СЊ РЅРµ РЅР°Р№РґРµРЅР°, СЃРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ РјРѕРґРµР»СЊ.',
       );
     }
 
@@ -77,10 +77,10 @@ export class UserService {
     });
 
     if (!model) {
-      throw new NotFoundException('Модель не найдена');
+      throw new NotFoundException('РњРѕРґРµР»СЊ РЅРµ РЅР°Р№РґРµРЅР°');
     }
 
-    // Если удаляемая модель была текущей — сбрасываем currentModelId
+    // Р•СЃР»Рё СѓРґР°Р»СЏРµРјР°СЏ РјРѕРґРµР»СЊ Р±С‹Р»Р° С‚РµРєСѓС‰РµР№ вЂ” СЃР±СЂР°СЃС‹РІР°РµРј currentModelId
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { currentModelId: true },
@@ -90,7 +90,7 @@ export class UserService {
       where: { id: modelId },
     });
 
-    // Если удалённая модель была текущей — сбрасываем
+    // Р•СЃР»Рё СѓРґР°Р»С‘РЅРЅР°СЏ РјРѕРґРµР»СЊ Р±С‹Р»Р° С‚РµРєСѓС‰РµР№ вЂ” СЃР±СЂР°СЃС‹РІР°РµРј
     if (user?.currentModelId === modelId) {
       await this.prisma.user.update({
         where: { id: userId },
@@ -98,7 +98,7 @@ export class UserService {
       });
     }
 
-    return { message: 'Модель успешно удалена' };
+    return { message: 'РњРѕРґРµР»СЊ СѓСЃРїРµС€РЅРѕ СѓРґР°Р»РµРЅР°' };
   }
 
   async findById(userId: number) {

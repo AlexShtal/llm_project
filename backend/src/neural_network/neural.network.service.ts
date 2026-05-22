@@ -34,7 +34,7 @@ export class NeuralNetworkService {
     });
 
     if (!chat) {
-      throw new NotFoundException('Чат не найден');
+      throw new NotFoundException('Р§Р°С‚ РЅРµ РЅР°Р№РґРµРЅ');
     }
 
     return chat;
@@ -73,7 +73,7 @@ export class NeuralNetworkService {
       where: { id: chatId },
     });
 
-    return { message: 'Чат удален' };
+    return { message: 'Р§Р°С‚ СѓРґР°Р»РµРЅ' };
   }
 
   async generateResponse(
@@ -85,7 +85,7 @@ export class NeuralNetworkService {
     const cleanPrompt = prompt.trim();
 
     if (!cleanPrompt) {
-      throw new BadRequestException('Сообщение не может быть пустым');
+      throw new BadRequestException('РЎРѕРѕР±С‰РµРЅРёРµ РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј');
     }
 
     const user = await this.prisma.user.findUnique({
@@ -101,7 +101,7 @@ export class NeuralNetworkService {
 
     if (!model) {
       throw new BadRequestException(
-        'Выберите или добавьте модель в настройках',
+        'Р’С‹Р±РµСЂРёС‚Рµ РёР»Рё РґРѕР±Р°РІСЊС‚Рµ РјРѕРґРµР»СЊ РІ РЅР°СЃС‚СЂРѕР№РєР°С…',
       );
     }
 
@@ -147,7 +147,7 @@ export class NeuralNetworkService {
     const shouldAutotitle =
       !messages.some((message) => message.role === MessageRole.USER) ||
       !chat.title ||
-      chat.title === 'Новый чат';
+      chat.title === 'РќРѕРІС‹Р№ С‡Р°С‚';
 
     const updatedChat = await this.prisma.chatHistory.update({
       where: { id: chat.id },
@@ -175,7 +175,7 @@ export class NeuralNetworkService {
     });
 
     if (!chat) {
-      throw new NotFoundException('Чат не найден');
+      throw new NotFoundException('Р§Р°С‚ РЅРµ РЅР°Р№РґРµРЅ');
     }
 
     return chat;
@@ -183,7 +183,7 @@ export class NeuralNetworkService {
 
   private normalizeTitle(title?: string) {
     const trimmed = title?.trim();
-    return trimmed ? trimmed.slice(0, 120) : 'Новый чат';
+    return trimmed ? trimmed.slice(0, 120) : 'РќРѕРІС‹Р№ С‡Р°С‚';
   }
 
   private async callModel(
@@ -219,7 +219,7 @@ export class NeuralNetworkService {
       if (!response.ok) {
         const message = this.extractErrorMessage(data) ?? response.statusText;
         throw new BadGatewayException(
-          `Модель вернула ошибку: ${message || response.status}`,
+          `РњРѕРґРµР»СЊ РІРµСЂРЅСѓР»Р° РѕС€РёР±РєСѓ: ${message || response.status}`,
         );
       }
 
@@ -230,7 +230,7 @@ export class NeuralNetworkService {
       }
 
       throw new BadGatewayException(
-        'Не удалось получить ответ от модели. Проверьте адрес API/IP.',
+        'РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РѕС‚РІРµС‚ РѕС‚ РјРѕРґРµР»Рё. РџСЂРѕРІРµСЂСЊС‚Рµ Р°РґСЂРµСЃ API/IP.',
       );
     }
   }
@@ -330,7 +330,7 @@ export class NeuralNetworkService {
       result.choices?.[0]?.text;
 
     if (!content) {
-      throw new BadGatewayException('Модель вернула ответ без текста');
+      throw new BadGatewayException('РњРѕРґРµР»СЊ РІРµСЂРЅСѓР»Р° РѕС‚РІРµС‚ Р±РµР· С‚РµРєСЃС‚Р°');
     }
 
     return content;

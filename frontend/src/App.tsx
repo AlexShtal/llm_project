@@ -81,7 +81,10 @@ export function App() {
       ? activeChat.messages
       : [welcomeMessage];
   const canSend =
-    prompt.trim().length > 0 && !isLoading && Boolean(token) && Boolean(activeChat);
+    prompt.trim().length > 0 &&
+    !isLoading &&
+    Boolean(token) &&
+    Boolean(activeChat);
   const selectedModel = models.find((model) => model.id === currentModelId);
 
   useEffect(() => {
@@ -199,7 +202,9 @@ export function App() {
 
   function upsertChat(chat: Chat) {
     setChats((currentChats) => {
-      const exists = currentChats.some((currentChat) => currentChat.id === chat.id);
+      const exists = currentChats.some(
+        (currentChat) => currentChat.id === chat.id,
+      );
       const nextChats = exists
         ? currentChats.map((currentChat) =>
             currentChat.id === chat.id ? chat : currentChat,
@@ -271,7 +276,9 @@ export function App() {
       return;
     }
 
-    const title = window.prompt("Новое название чата", activeChat.title)?.trim();
+    const title = window
+      .prompt("Новое название чата", activeChat.title)
+      ?.trim();
     if (!title || title === activeChat.title) {
       return;
     }
@@ -383,7 +390,10 @@ export function App() {
     const startWidth = sidebarWidth;
 
     function handlePointerMove(moveEvent: globalThis.PointerEvent) {
-      const nextWidth = Math.min(460, Math.max(220, startWidth + moveEvent.clientX - startX));
+      const nextWidth = Math.min(
+        460,
+        Math.max(220, startWidth + moveEvent.clientX - startX),
+      );
       setSidebarWidth(nextWidth);
     }
 
@@ -668,7 +678,9 @@ export function App() {
           </button>
           <div className="chat-title-wrap">
             <p className="eyebrow">Текущий чат</p>
-            <h1 title={activeChat?.title}>{activeChat?.title ?? "Новый чат"}</h1>
+            <h1 title={activeChat?.title}>
+              {activeChat?.title ?? "Новый чат"}
+            </h1>
           </div>
           <div className="chat-actions">
             <button
@@ -767,7 +779,9 @@ function mapApiChat(chat: ApiChat): Chat {
     title: chat.title?.trim() || "Новый чат",
     updatedAt: chat.updatedAt,
     messages: chat.messages
-      .filter((message) => message.role === "USER" || message.role === "ASSISTANT")
+      .filter(
+        (message) => message.role === "USER" || message.role === "ASSISTANT",
+      )
       .map((message) => ({
         id: message.id,
         role: message.role === "ASSISTANT" ? "assistant" : "user",
