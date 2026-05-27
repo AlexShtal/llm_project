@@ -14,7 +14,7 @@ export function MessageInput() {
     setPrompt("");
   };
 
-  const isDisabled = isGenerating || !currentModelId || models.length === 0;
+  const isDisabled = isGenerating || !currentModelId;
 
   return (
     <form onSubmit={handleSubmit} className="message-input-form">
@@ -24,7 +24,7 @@ export function MessageInput() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={
-            isDisabled ? "Сначала добавьте модель..." : "Задайте вопрос..."
+            !currentModelId ? "Сначала добавьте модель..." : "Задайте вопрос..."
           }
           disabled={isDisabled}
           className="message-input"

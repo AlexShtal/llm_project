@@ -2,7 +2,13 @@
   color: #202123;
   background: #f7f7f8;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -540,7 +546,9 @@ button:disabled {
 
 .message.user {
   background: #ffffff;
-  box-shadow: 100vmax 0 0 #ffffff, -100vmax 0 0 #ffffff;
+  box-shadow:
+    100vmax 0 0 #ffffff,
+    -100vmax 0 0 #ffffff;
   clip-path: inset(0 -100vmax);
 }
 
@@ -781,6 +789,79 @@ button:disabled {
   .suggestions {
     grid-template-columns: 1fr;
   }
+}
+
+.message-input-form {
+  width: min(810px, 100%);
+  margin: 0 auto;
+}
+
+.message-input-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d9d9e3;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+}
+
+.message-input-container:focus-within {
+  border-color: #10a37f;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.15);
+}
+
+.message-input {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  padding: 10px 8px;
+  color: #202123;
+  background: transparent;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.message-input::placeholder {
+  color: #a0a1aa;
+}
+
+.message-input:focus {
+  outline: 0;
+}
+
+.message-input:disabled {
+  color: #a0a1aa;
+}
+
+.message-input:disabled::placeholder {
+  color: #d0d0d8;
+}
+
+.message-send-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #10a37f;
+  font-size: 1.2rem;
+  font-weight: 900;
+  padding: 0;
+}
+
+.message-send-button:hover:not(:disabled) {
+  background: #0d8f70;
+}
+
+.message-send-button:disabled {
+  color: #8f9098;
+  background: #ececf1;
 }
 
 @media (max-width: 560px) {

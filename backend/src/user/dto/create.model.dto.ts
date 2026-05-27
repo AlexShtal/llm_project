@@ -14,7 +14,6 @@ export class CreateModelDto {
   @IsString()
   @IsNotEmpty()
   apiOrIP: string;
-
   @ApiPropertyOptional({
     example: 'Custom OpenAI-compatible model',
     description: 'Optional model description',
@@ -22,7 +21,6 @@ export class CreateModelDto {
   @IsString()
   @IsOptional()
   description?: string;
-
   @ApiProperty({
     example: 'openai-compatible',
     description: 'Provider type or identifier',
