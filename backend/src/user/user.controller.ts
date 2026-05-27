@@ -58,7 +58,10 @@ export class UserController {
   @Post('set-current-model')
   @ApiOperation({ summary: 'Set the current model for the user' })
   @ApiBody({ type: SetCurrentModelDto })
-  @ApiResponse({ status: 200, description: 'Current model updated successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current model updated successfully.',
+  })
   async setCurrentModel(@Req() req: any, @Body() body: SetCurrentModelDto) {
     return this.userService.setCurrentModel(req.user.id, body.modelId);
   }

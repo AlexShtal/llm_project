@@ -7,17 +7,26 @@ export class CreateModelDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'https://api.openai.com/v1/chat/completions', description: 'API endpoint or IP address' })
+  @ApiProperty({
+    example: 'https://api.openai.com/v1/chat/completions',
+    description: 'API endpoint or IP address',
+  })
   @IsString()
   @IsNotEmpty()
   apiOrIP: string;
 
-  @ApiPropertyOptional({ example: 'Custom OpenAI-compatible model', description: 'Optional model description' })
+  @ApiPropertyOptional({
+    example: 'Custom OpenAI-compatible model',
+    description: 'Optional model description',
+  })
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 'openai-compatible', description: 'Provider type or identifier' })
+  @ApiProperty({
+    example: 'openai-compatible',
+    description: 'Provider type or identifier',
+  })
   @IsString()
   @IsNotEmpty()
   provider: string;
