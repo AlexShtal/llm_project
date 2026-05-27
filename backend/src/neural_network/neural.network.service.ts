@@ -6,10 +6,15 @@ import {
 } from '@nestjs/common';
 import { MessageRole, Model } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ProviderFactory } from '../providers/factory/provider.factory';
+import { ProviderConfig } from '../providers/interfaces/llm-provider.interface';
 
 @Injectable()
 export class NeuralNetworkService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly providerFactory: ProviderFactory,
+  ) {}
 
   async getChats(userId: number) {
     return this.prisma.chatHistory.findMany({
@@ -34,7 +39,7 @@ export class NeuralNetworkService {
     });
 
     if (!chat) {
-      throw new NotFoundException('Чат не найден');
+      throw new NotFoundException('Chat not found');
     }
 
     return chat;
@@ -73,7 +78,7 @@ export class NeuralNetworkService {
       where: { id: chatId },
     });
 
-    return { message: 'Чат удален' };
+    return { message: 'Chat deleted' };
   }
 
   async generateResponse(
@@ -85,7 +90,7 @@ export class NeuralNetworkService {
     const cleanPrompt = prompt.trim();
 
     if (!cleanPrompt) {
-      throw new BadRequestException('Сообщение не может быть пустым');
+      throw new BadRequestException('Message cannot be empty');
     }
 
     const user = await this.prisma.user.findUnique({
@@ -100,9 +105,7 @@ export class NeuralNetworkService {
       : user?.currentModel;
 
     if (!model) {
-      throw new BadRequestException(
-        'Выберите или добавьте модель в настройках',
-      );
+      throw new BadRequestException('Select or add a model in settings');
     }
 
     const chat = chatId
@@ -147,7 +150,7 @@ export class NeuralNetworkService {
     const shouldAutotitle =
       !messages.some((message) => message.role === MessageRole.USER) ||
       !chat.title ||
-      chat.title === 'Новый чат';
+      chat.title === 'New chat';
 
     const updatedChat = await this.prisma.chatHistory.update({
       where: { id: chat.id },
@@ -175,7 +178,7 @@ export class NeuralNetworkService {
     });
 
     if (!chat) {
-      throw new NotFoundException('Чат не найден');
+      throw new NotFoundException('Chat not found');
     }
 
     return chat;
@@ -183,106 +186,79 @@ export class NeuralNetworkService {
 
   private normalizeTitle(title?: string) {
     const trimmed = title?.trim();
-    return trimmed ? trimmed.slice(0, 120) : 'Новый чат';
+    return trimmed ? trimmed.slice(0, 120) : 'New chat';
   }
 
   private async callModel(
     model: Model,
     messages: Array<{ role: MessageRole; content: string }>,
   ) {
-    const endpoint = this.resolveEndpoint(model.apiOrIP);
-    const chatMessages = messages.map((message) => ({
-      role: this.toProviderRole(message.role),
+    const providerConfig: ProviderConfig = {
+      type: (model as any).provider || 'openai-compatible',
+      endpoint: model.apiOrIP,
+      apiKey: process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY,
+      modelId: model.name,
+      ...(model as any).providerConfig,
+    };
+
+    const provider = this.providerFactory.getProvider(providerConfig);
+
+    try {
+      await provider.validateConfig(providerConfig);
+    } catch (error) {
+      throw new BadRequestException(
+        `Provider configuration error: ${error.message}`,
+      );
+    }
+
+    const providerMessages = messages.map((message) => ({
+      role: this.toProviderRole(message.role) as
+        | 'user'
+        | 'assistant'
+        | 'system'
+        | 'developer',
       content: message.content,
     }));
 
-    const body = this.createRequestBody(endpoint, model.name, chatMessages);
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const apiKey = process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY;
-    if (apiKey && endpoint.kind === 'openai-compatible') {
-      headers.Authorization = `Bearer ${apiKey}`;
-    }
+    const requestBody = provider.generateRequest(providerMessages, model.name);
+    const headers = provider.getRequestHeaders(providerConfig);
+    const endpoint = provider.getEndpoint(providerConfig);
 
     try {
-      const response = await fetch(endpoint.url, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify(body),
+        body: JSON.stringify(requestBody),
       });
 
       const responseText = await response.text();
       const data = this.parseJson(responseText);
 
       if (!response.ok) {
-        const message = this.extractErrorMessage(data) ?? response.statusText;
+        const parseResult = provider.parseResponse(data);
+        const message = parseResult.error ?? response.statusText;
         throw new BadGatewayException(
-          `Модель вернула ошибку: ${message || response.status}`,
+          `Provider error: ${message || response.status}`,
         );
       }
 
-      return this.extractText(data);
+      const parseResult = provider.parseResponse(data);
+      if (!parseResult.success || !parseResult.text) {
+        throw new BadGatewayException(
+          `Failed to parse response: ${parseResult.error}`,
+        );
+      }
+
+      return parseResult.text;
     } catch (error) {
       if (error instanceof BadGatewayException) {
         throw error;
       }
 
       throw new BadGatewayException(
-        'Не удалось получить ответ от модели. Проверьте адрес API/IP.',
+        'Failed to get response from provider. Check endpoint and API key.',
       );
     }
-  }
-
-  private resolveEndpoint(apiOrIP: string) {
-    const rawValue = apiOrIP.trim();
-    const withProtocol = /^https?:\/\//i.test(rawValue)
-      ? rawValue
-      : `http://${rawValue}`;
-    const url = new URL(withProtocol);
-    const path = url.pathname.replace(/\/$/, '');
-
-    if (!path || path === '' || path === '/') {
-      url.pathname =
-        url.port === '11434' ? '/api/chat' : '/v1/chat/completions';
-    }
-
-    const normalizedPath = url.pathname.toLowerCase();
-    const kind = normalizedPath.includes('/api/chat')
-      ? 'ollama-chat'
-      : normalizedPath.includes('/api/generate')
-        ? 'ollama-generate'
-        : normalizedPath.includes('/v1/chat/completions')
-          ? 'openai-compatible'
-          : 'generic';
-
-    return {
-      url: url.toString(),
-      kind,
-    };
-  }
-
-  private createRequestBody(
-    endpoint: { kind: string },
-    modelName: string,
-    messages: Array<{ role: string; content: string }>,
-  ) {
-    const lastMessage = messages[messages.length - 1]?.content ?? '';
-
-    if (endpoint.kind === 'ollama-chat') {
-      return { model: modelName, messages, stream: false };
-    }
-
-    if (endpoint.kind === 'ollama-generate') {
-      return { model: modelName, prompt: lastMessage, stream: false };
-    }
-
-    if (endpoint.kind === 'openai-compatible') {
-      return { model: modelName, messages, stream: false };
-    }
-
-    return { model: modelName, prompt: lastMessage, messages };
   }
 
   private toProviderRole(role: MessageRole) {
@@ -302,58 +278,5 @@ export class NeuralNetworkService {
     } catch {
       return responseText;
     }
-  }
-
-  private extractText(data: unknown): string {
-    if (typeof data === 'string') {
-      return data;
-    }
-
-    if (!data || typeof data !== 'object') {
-      return String(data ?? '');
-    }
-
-    const result = data as {
-      response?: string;
-      text?: string;
-      message?: { content?: string } | string;
-      choices?: Array<{ message?: { content?: string }; text?: string }>;
-    };
-
-    const content =
-      result.response ??
-      result.text ??
-      (typeof result.message === 'string'
-        ? result.message
-        : result.message?.content) ??
-      result.choices?.[0]?.message?.content ??
-      result.choices?.[0]?.text;
-
-    if (!content) {
-      throw new BadGatewayException('Модель вернула ответ без текста');
-    }
-
-    return content;
-  }
-
-  private extractErrorMessage(data: unknown) {
-    if (typeof data === 'string') {
-      return data;
-    }
-
-    if (!data || typeof data !== 'object') {
-      return undefined;
-    }
-
-    const result = data as {
-      error?: string | { message?: string };
-      message?: string | string[];
-    };
-
-    if (typeof result.error === 'string') return result.error;
-    if (typeof result.error?.message === 'string') return result.error.message;
-    if (typeof result.message === 'string') return result.message;
-    if (Array.isArray(result.message)) return result.message.join(', ');
-    return undefined;
   }
 }

@@ -5,6 +5,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { NeuralNetworkModule } from './neural_network/neural.network.module';
 import { UserModule } from './user/user.module';
+import { AdminModule } from './admin/admin.module';
+import { RedisCacheModule } from './cache/cache.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -12,10 +15,12 @@ import { UserModule } from './user/user.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    RedisCacheModule,
     AuthModule,
+    AdminModule,
     NeuralNetworkModule,
-    ConfigModule,
     UserModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

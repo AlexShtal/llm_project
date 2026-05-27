@@ -16,13 +16,15 @@ export class AuthService {
   ) {}
 
   async register({ email, username, password }: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: email },
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: email }, { username: username }],
+      },
     });
 
     if (existingUser !== null) {
       throw new BadRequestException(
-        'User with this email or username already exists',
+        'Пользователь с таким email или username уже существует',
       );
     }
 
@@ -36,13 +38,15 @@ export class AuthService {
       },
     });
 
-    return user;
+    const { passwordHash, ...userWithoutPassword } = user;
+
+    return {
+      user: userWithoutPassword,
+      access_token: this.jwtService.sign({ sub: user.id }),
+    };
   }
 
-  async login({
-    email,
-    password,
-  }: LoginDto): Promise<{ existingUser: User; token: string }> {
+  async login({ email, password }: LoginDto) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -57,9 +61,10 @@ export class AuthService {
       throw new BadRequestException('Invalid email or password');
     }
 
+    const { passwordHash, ...userWithoutPassword } = existingUser;
     return {
-      existingUser,
-      token: this.jwtService.sign({ sub: existingUser.id }),
+      user: userWithoutPassword,
+      access_token: this.jwtService.sign({ sub: existingUser.id }),
     };
   }
 }

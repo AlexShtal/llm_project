@@ -12,4 +12,8 @@ export class CreateModelDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  provider: string;
 }

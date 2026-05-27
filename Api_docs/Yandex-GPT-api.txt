@@ -1,0 +1,58 @@
+Настройте окружение
+Установите необходимые пакеты и библиотеки:
+
+
+
+
+
+
+
+Установите библиотеку OpenAI Node.js:
+
+npm install --save openai
+        # or
+        yarn add openai
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Чтобы использовать модели Model Gallery, задайте данные для аутентификации. Для этого вам понадобятся идентификатор каталога и секретное значение созданного API-ключа:
+
+import OpenAI from "openai";
+        
+        const YANDEX_FOLDER_ID = '<идентификатор_каталога>';
+        const YANDEX_API_KEY = '<значение_API-ключа>';
+        
+        const openai = new OpenAI({
+          apiKey: YANDEX_API_KEY,
+          project: YANDEX_FOLDER_ID,
+          baseURL:'https://ai.api.cloud.yandex.net/v1'});
+        
+
+Отправьте запрос к модели
+Отправьте запрос к модели. Для примера обратитесь к модели Alice AI LLM:
+
+const response = await openai.responses.create({
+          model: `gpt://${YANDEX_FOLDER_ID}/aliceai-llm`,
+          input: 'Придумай 3 необычные идеи для стартапа в сфере путешествий.'
+        });
+        
+        console.log(response.output_text);
+        

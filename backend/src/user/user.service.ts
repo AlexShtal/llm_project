@@ -31,6 +31,7 @@ export class UserService {
         name: dto.name,
         apiOrIP: dto.apiOrIP,
         description: dto.description,
+        provider: dto.provider,
       },
     });
   }
