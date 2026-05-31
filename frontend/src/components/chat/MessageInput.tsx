@@ -2,8 +2,14 @@ import React, { useState } from "react";
 import { useChat } from "../../context/ChatContext";
 
 export function MessageInput() {
-  const { generateResponse, isGenerating, activeChat, currentModelId, models } =
-    useChat();
+  const {
+    generateResponse,
+    appendUserMessage,
+    isGenerating,
+    activeChat,
+    currentModelId,
+    models,
+  } = useChat();
   const [prompt, setPrompt] = useState("");
   const hasUsableModel = Boolean(currentModelId ?? models[0]?.id);
 
@@ -11,8 +17,9 @@ export function MessageInput() {
     e.preventDefault();
     if (!prompt.trim() || isGenerating || !hasUsableModel) return;
 
-    await generateResponse(prompt, activeChat?.id);
+    appendUserMessage(prompt, activeChat?.id);
     setPrompt("");
+    await generateResponse(prompt, activeChat?.id);
   };
 
   const isDisabled = isGenerating || !hasUsableModel;

@@ -484,6 +484,27 @@ body {
   color: var(--color-text-dark);
 }
 
+.message-pending .message-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pending-response .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Message Input */
 .message-input-form {
   padding: 16px 20px;

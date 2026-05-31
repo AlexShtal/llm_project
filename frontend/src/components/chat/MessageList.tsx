@@ -2,7 +2,7 @@ import React from "react";
 import { useChat, Message } from "../../context/ChatContext";
 
 export function MessageList() {
-  const { activeChat } = useChat();
+  const { activeChat, isGenerating } = useChat();
 
   if (!activeChat) {
     return (
@@ -12,9 +12,11 @@ export function MessageList() {
     );
   }
 
+  const hasMessages = activeChat.messages && activeChat.messages.length > 0;
+
   return (
     <div className="message-list">
-      {activeChat.messages && activeChat.messages.length === 0 ? (
+      {!hasMessages && !isGenerating ? (
         <div className="message-list-empty">
           <p>Сообщений пока нет. Начните диалог.</p>
         </div>
@@ -27,6 +29,16 @@ export function MessageList() {
             <div className="message-content">{message.content}</div>
           </div>
         ))
+      )}
+
+      {isGenerating && (
+        <div className="message message-assistant message-pending">
+          <div className="message-author">АсѨистент</div>
+          <div className="message-content pending-response">
+            <span>Ожидаем ответ...</span>
+            <span className="spinner" aria-label="Загрузка" />
+          </div>
+        </div>
       )}
     </div>
   );

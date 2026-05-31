@@ -56,6 +56,7 @@ interface ChatContextType {
   updateChatTitle: (chatId: number, title: string) => Promise<void>;
   setActiveChat: (chat: Chat | null) => void;
   generateResponse: (prompt: string, chatId?: number) => Promise<void>;
+  appendUserMessage: (content: string, chatId?: number) => void;
   setCurrentModel: (modelId: number) => Promise<void>;
   setError: (error: string | null) => void;
 }
@@ -82,6 +83,43 @@ export function ChatProvider({
     setActiveChatState(chat);
     setError(null);
   }, []);
+
+  const appendUserMessage = useCallback(
+    (content: string, chatId?: number) => {
+      const tempId = -Date.now();
+      const tempMessage: Message = {
+        id: tempId,
+        role: "user",
+        content,
+        createdAt: new Date().toISOString(),
+      };
+
+      setActiveChatState((chat) => {
+        if (chat && chat.id === chatId) {
+          const updated = {
+            ...chat,
+            messages: [...chat.messages, tempMessage],
+          };
+          setChats((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+          return updated;
+        }
+
+        if (!chat && !chatId) {
+          const tempChat: Chat = {
+            id: tempId,
+            title: "Новый чат",
+            createdAt: new Date().toISOString(),
+            messages: [tempMessage],
+          };
+          setChats((prev) => [tempChat, ...prev]);
+          return tempChat;
+        }
+
+        return chat;
+      });
+    },
+    [],
+  );
 
   const persistCurrentModel = useCallback(
     async (modelId: number) => {
@@ -248,6 +286,7 @@ export function ChatProvider({
         updateChatTitle,
         setActiveChat,
         generateResponse,
+        appendUserMessage,
         setCurrentModel,
         setError,
       }}
