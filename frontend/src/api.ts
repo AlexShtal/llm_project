@@ -11,6 +11,7 @@ export type ModelInfo = {
   id: number;
   name: string;
   apiOrIP: string;
+  provider: string;
   description?: string | null;
   createdAt?: string;
 };
@@ -59,19 +60,70 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const data = parseJson(responseText);
 
   if (!response.ok) {
-    const message =
-      typeof data === "object" && data !== null && "message" in data
-        ? String((data as { message: unknown }).message)
-        : `РћС€РёР±РєР° Р·Р°РїСЂРѕСЃР°: ${response.status}`;
-
-    throw new Error(message);
+    throw new Error(getFriendlyError(response, data));
   }
 
   return data as T;
 }
 
+function getFriendlyError(response: Response, data: unknown) {
+  const rawMessage = getRawErrorMessage(data);
+  const url = response.url;
+
+  if (url.includes("/auth/login")) {
+    return "Неверный логин или пароль.";
+  }
+
+  if (url.includes("/auth/register")) {
+    if (response.status === 409 || response.status === 400) {
+      return "Не удалось зарегистрироваться. Проверьте email, имя пользователя и пароль.";
+    }
+    return "Не удалось создать аккаунт. Попробуйте ещё раз.";
+  }
+
+  if (url.includes("/user/add-model")) {
+    if (response.status === 409 || /exist|already|существ/i.test(rawMessage)) {
+      return "Модель с таким названием уже добавлена.";
+    }
+    return "Не удалось добавить модель. Проверьте название и endpoint.";
+  }
+
+  if (url.includes("/user/set-current-model")) {
+    return "Не удалось выбрать модель. Обновите список моделей и попробуйте снова.";
+  }
+
+  if (url.includes("/ai/generate")) {
+    if (/model|модель/i.test(rawMessage)) {
+      return "Сначала добавьте и выберите модель.";
+    }
+    if (/provider|endpoint|api key|configuration/i.test(rawMessage)) {
+      return "Модель не отвечает. Проверьте endpoint и API-ключ.";
+    }
+    return "Не удалось получить ответ от модели. Попробуйте ещё раз.";
+  }
+
+  if (response.status === 401) {
+    return "Сессия истекла. Войдите снова.";
+  }
+
+  return rawMessage || `Ошибка запроса: ${response.status}`;
+}
+
+function getRawErrorMessage(data: unknown) {
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (typeof data === "object" && data !== null && "message" in data) {
+    const message = (data as { message: unknown }).message;
+    return Array.isArray(message) ? message.join(". ") : String(message);
+  }
+
+  return "";
+}
+
 export async function login(email: string, password: string) {
-  return parseResponse<{ token: string; existingUser: UserProfile }>(
+  return parseResponse<{ access_token: string; user: UserProfile }>(
     await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: authHeaders(),
@@ -85,7 +137,7 @@ export async function register(
   username: string,
   password: string,
 ) {
-  return parseResponse<UserProfile>(
+  return parseResponse<{ access_token: string; user: UserProfile }>(
     await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: authHeaders(),
@@ -112,7 +164,13 @@ export async function getMyModels(token: string) {
 
 export async function addModel(
   token: string,
-  model: { name: string; apiOrIP: string; description?: string },
+  model: {
+    name: string;
+    apiOrIP: string;
+    provider: string;
+    description?: string;
+    apiKey?: string;
+  },
 ) {
   return parseResponse<ModelInfo>(
     await fetch(`${API_URL}/user/add-model`, {

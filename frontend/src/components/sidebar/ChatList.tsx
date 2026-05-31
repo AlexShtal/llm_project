@@ -31,8 +31,9 @@ export function ChatList() {
             <button
               onClick={() => deleteChat(chat.id)}
               className="chat-item-delete"
+              aria-label="Удалить чат"
             >
-              х
+              ×
             </button>
           </div>
         ))}

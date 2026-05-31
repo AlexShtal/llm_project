@@ -5,16 +5,17 @@ export function MessageInput() {
   const { generateResponse, isGenerating, activeChat, currentModelId, models } =
     useChat();
   const [prompt, setPrompt] = useState("");
+  const hasUsableModel = Boolean(currentModelId ?? models[0]?.id);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || isGenerating || !currentModelId) return;
+    if (!prompt.trim() || isGenerating || !hasUsableModel) return;
 
     await generateResponse(prompt, activeChat?.id);
     setPrompt("");
   };
 
-  const isDisabled = isGenerating || !currentModelId;
+  const isDisabled = isGenerating || !hasUsableModel;
 
   return (
     <form onSubmit={handleSubmit} className="message-input-form">
@@ -24,21 +25,16 @@ export function MessageInput() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={
-            !currentModelId ? "Сначала добавьте модель..." : "Задайте вопрос..."
+            hasUsableModel ? "Задайте вопрос..." : "Сначала добавьте и выберите модель"
           }
           disabled={isDisabled}
           className="message-input"
-          onKeyPress={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e as any);
-            }
-          }}
         />
         <button
           type="submit"
           disabled={isDisabled || !prompt.trim()}
           className="message-send-button"
+          aria-label="Отправить сообщение"
         >
           <svg
             width="16"

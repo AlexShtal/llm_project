@@ -195,12 +195,27 @@ export class NeuralNetworkService {
     model: Model,
     messages: Array<{ role: MessageRole; content: string }>,
   ) {
+    const providerConfigFromDb =
+      typeof (model as any).providerConfig === 'object' &&
+      (model as any).providerConfig !== null
+        ? ((model as any).providerConfig as Record<string, unknown>)
+        : {};
+    const endpointOrKey = model.apiOrIP.trim();
+    const apiKeyFromEndpoint = this.looksLikeApiKey(endpointOrKey)
+      ? endpointOrKey
+      : undefined;
+    const configuredEndpoint = apiKeyFromEndpoint
+      ? 'https://api.openai.com/v1'
+      : endpointOrKey;
+
     const providerConfig: ProviderConfig = {
       type: (model as any).provider || 'openai-compatible',
-      endpoint: model.apiOrIP,
-      apiKey: process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY,
+      endpoint: configuredEndpoint,
+      apiKey:
+        (providerConfigFromDb.apiKey as string | undefined) ??
+        apiKeyFromEndpoint,
       modelId: model.name,
-      ...(model as any).providerConfig,
+      ...providerConfigFromDb,
     };
 
     const provider = this.providerFactory.getProvider(providerConfig);
@@ -280,5 +295,9 @@ export class NeuralNetworkService {
     } catch {
       return responseText;
     }
+  }
+
+  private looksLikeApiKey(value: string) {
+    return /^(sk-|sk-proj-)/.test(value);
   }
 }

@@ -5,6 +5,18 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
+import {
+  ApiChat,
+  ApiMessage,
+  ModelInfo,
+  createChat as createChatRequest,
+  deleteChat as deleteChatRequest,
+  generateText,
+  getChats,
+  getMyModels,
+  setCurrentModel as setCurrentModelRequest,
+  updateChat as updateChatRequest,
+} from "../api";
 
 export interface Message {
   id: number;
@@ -23,7 +35,7 @@ export interface Chat {
 export interface Model {
   id: number;
   name: string;
-  description?: string;
+  description?: string | null;
   provider: string;
   apiOrIP: string;
 }
@@ -37,7 +49,6 @@ interface ChatContextType {
   isLoadingModels: boolean;
   isGenerating: boolean;
   error: string | null;
-
   loadChats: () => Promise<void>;
   loadModels: () => Promise<void>;
   createChat: (title?: string) => Promise<Chat>;
@@ -59,7 +70,7 @@ export function ChatProvider({
   token: string | null;
 }) {
   const [chats, setChats] = useState<Chat[]>([]);
-  const [activeChat, setActiveChat] = useState<Chat | null>(null);
+  const [activeChat, setActiveChatState] = useState<Chat | null>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [currentModelId, setCurrentModelId] = useState<number | null>(null);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
@@ -67,24 +78,32 @@ export function ChatProvider({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+  const setActiveChat = useCallback((chat: Chat | null) => {
+    setActiveChatState(chat);
+    setError(null);
+  }, []);
+
+  const persistCurrentModel = useCallback(
+    async (modelId: number) => {
+      if (!token) return;
+      setCurrentModelId(modelId);
+      try {
+        await setCurrentModelRequest(token, modelId);
+      } catch {
+        // The UI can still use the model id for this session.
+      }
+    },
+    [token],
+  );
 
   const loadChats = useCallback(async () => {
     if (!token) return;
     setIsLoadingChats(true);
     try {
-      const response = await fetch("http://localhost:3000/ai/chats", {
-        headers,
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setChats(data);
-      }
+      const data = await getChats(token);
+      setChats(data.map(mapChat));
     } catch (err) {
-      setError("Failed to load chats");
+      setError(getErrorMessage(err, "Не удалось загрузить чаты."));
     } finally {
       setIsLoadingChats(false);
     }
@@ -94,37 +113,40 @@ export function ChatProvider({
     if (!token) return;
     setIsLoadingModels(true);
     try {
-      const response = await fetch("http://localhost:3000/user/my-models", {
-        headers,
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setModels(data.models || []);
-        if (data.currentModelId) {
-          setCurrentModelId(data.currentModelId);
-        }
+      const data = await getMyModels(token);
+      const nextModels = (data.models || []).map(mapModel);
+      const nextCurrentModelId =
+        data.currentModelId ?? data.currentModel?.id ?? nextModels[0]?.id ?? null;
+
+      setModels(nextModels);
+      setCurrentModelId(nextCurrentModelId);
+
+      if (!data.currentModelId && nextCurrentModelId) {
+        await persistCurrentModel(nextCurrentModelId);
       }
     } catch (err) {
-      setError("Failed to load models");
+      setError(getErrorMessage(err, "Не удалось загрузить модели."));
     } finally {
       setIsLoadingModels(false);
     }
-  }, [token]);
+  }, [token, persistCurrentModel]);
 
   useEffect(() => {
+    if (!token) {
+      setChats([]);
+      setActiveChatState(null);
+      setModels([]);
+      setCurrentModelId(null);
+      return;
+    }
+
     loadModels();
   }, [token, loadModels]);
 
   const createChat = useCallback(
     async (title?: string): Promise<Chat> => {
-      if (!token) throw new Error("Not authenticated");
-      const response = await fetch("http://localhost:3000/ai/chats", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ title }),
-      });
-      if (!response.ok) throw new Error("Failed to create chat");
-      const chat = await response.json();
+      if (!token) throw new Error("Нужно войти в аккаунт.");
+      const chat = mapChat(await createChatRequest(token, title));
       setChats((prev) => [chat, ...prev]);
       return chat;
     },
@@ -133,85 +155,79 @@ export function ChatProvider({
 
   const deleteChat = useCallback(
     async (chatId: number) => {
-      if (!token) throw new Error("Not authenticated");
-      const response = await fetch(`http://localhost:3000/ai/chats/${chatId}`, {
-        method: "DELETE",
-        headers,
-      });
-      if (!response.ok) throw new Error("Failed to delete chat");
-      setChats((prev) => prev.filter((c) => c.id !== chatId));
-      if (activeChat?.id === chatId) {
-        setActiveChat(null);
-      }
+      if (!token) throw new Error("Нужно войти в аккаунт.");
+      await deleteChatRequest(token, chatId);
+      setChats((prev) => prev.filter((chat) => chat.id !== chatId));
+      setActiveChatState((chat) => (chat?.id === chatId ? null : chat));
     },
-    [token, activeChat],
+    [token],
   );
 
   const updateChatTitle = useCallback(
     async (chatId: number, title: string) => {
-      if (!token) throw new Error("Not authenticated");
-      const response = await fetch(`http://localhost:3000/ai/chats/${chatId}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ title }),
-      });
-      if (!response.ok) throw new Error("Failed to update chat");
-      const updated = await response.json();
+      const cleanTitle = title.trim();
+      if (!token || !cleanTitle) return;
+
+      const updated = mapChat(await updateChatRequest(token, chatId, cleanTitle));
       setChats((prev) =>
-        prev.map((c) => (c.id === chatId ? { ...c, title: updated.title } : c)),
+        prev.map((chat) => (chat.id === chatId ? updated : chat)),
       );
-      if (activeChat?.id === chatId) {
-        setActiveChat({ ...activeChat, title: updated.title });
-      }
+      setActiveChatState((chat) => (chat?.id === chatId ? updated : chat));
     },
-    [token, activeChat],
+    [token],
   );
 
   const generateResponse = useCallback(
     async (prompt: string, chatId?: number) => {
-      if (!token || !currentModelId) return;
+      if (!token) return;
+
+      const modelId = currentModelId ?? models[0]?.id ?? null;
+      if (!modelId) {
+        setError("Сначала добавьте и выберите модель.");
+        return;
+      }
+
+      if (!currentModelId) {
+        persistCurrentModel(modelId);
+      }
+
       setIsGenerating(true);
       setError(null);
       try {
-        const response = await fetch("http://localhost:3000/ai/generate", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            prompt,
-            chatId,
-            modelId: currentModelId,
-          }),
+        const data = await generateText(prompt, token, chatId, modelId);
+        const chat = mapChat(data.chat);
+        setActiveChatState(chat);
+        setChats((prev) => {
+          const exists = prev.some((item) => item.id === chat.id);
+          return exists
+            ? prev.map((item) => (item.id === chat.id ? chat : item))
+            : [chat, ...prev];
         });
-        if (!response.ok) throw new Error("Failed to generate response");
-        const data = await response.json();
-        setActiveChat(data.chat);
-        setChats((prev) =>
-          prev.map((c) => (c.id === data.chat.id ? data.chat : c)),
-        );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(getErrorMessage(err, "Не удалось получить ответ от модели."));
       } finally {
         setIsGenerating(false);
       }
     },
-    [token, currentModelId],
+    [token, currentModelId, models, persistCurrentModel],
   );
 
   const setCurrentModel = useCallback(
     async (modelId: number) => {
       if (!token) return;
+
+      const previousModelId = currentModelId;
       setCurrentModelId(modelId);
+      setError(null);
+
       try {
-        await fetch("http://localhost:3000/user/set-current-model", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ modelId }),
-        });
+        await setCurrentModelRequest(token, modelId);
       } catch (err) {
-        setError("Failed to set current model");
+        setCurrentModelId(previousModelId);
+        setError(getErrorMessage(err, "Не удалось выбрать модель."));
       }
     },
-    [token],
+    [token, currentModelId],
   );
 
   return (
@@ -239,6 +255,38 @@ export function ChatProvider({
       {children}
     </ChatContext.Provider>
   );
+}
+
+function mapChat(chat: ApiChat): Chat {
+  return {
+    id: chat.id,
+    title: chat.title?.trim() || "Новый чат",
+    createdAt: chat.createdAt,
+    messages: (chat.messages || []).map(mapMessage),
+  };
+}
+
+function mapMessage(message: ApiMessage): Message {
+  return {
+    id: message.id,
+    role: message.role === "USER" ? "user" : "assistant",
+    content: message.content,
+    createdAt: message.createdAt,
+  };
+}
+
+function mapModel(model: ModelInfo): Model {
+  return {
+    id: model.id,
+    name: model.name,
+    description: model.description,
+    provider: model.provider,
+    apiOrIP: model.apiOrIP,
+  };
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
 }
 
 export function useChat() {

@@ -7,7 +7,7 @@ export function MessageList() {
   if (!activeChat) {
     return (
       <div className="message-list-empty">
-        <p>Выберите чат</p>
+        <p>Выберите чат или начните новый диалог</p>
       </div>
     );
   }
@@ -16,13 +16,13 @@ export function MessageList() {
     <div className="message-list">
       {activeChat.messages && activeChat.messages.length === 0 ? (
         <div className="message-list-empty">
-          <p>Нет сообщений. Начните диалог!</p>
+          <p>Сообщений пока нет. Начните диалог.</p>
         </div>
       ) : (
         activeChat.messages?.map((message: Message) => (
           <div key={message.id} className={`message message-${message.role}`}>
             <div className="message-author">
-              {message.role === "user" ? "You" : "Assistant"}
+              {message.role === "user" ? "Вы" : "Ассистент"}
             </div>
             <div className="message-content">{message.content}</div>
           </div>

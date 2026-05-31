@@ -33,7 +33,7 @@ export function Sidebar() {
           <div className="sidebar-section">
             <h3>Модель</h3>
             {models.length === 0 ? (
-              <div className="model-notice">Нет моделей</div>
+              <div className="model-notice">Нет добавленных моделей</div>
             ) : (
               <ModelSelector />
             )}

@@ -6,15 +6,15 @@ export function ModelSelector() {
     useChat();
 
   if (isLoadingModels) {
-    return <div className="model-selector">Loading models...</div>;
+    return <div className="model-selector">Загрузка моделей...</div>;
   }
 
   if (models.length === 0) {
     return (
       <div className="model-selector">
-        <label>Model:</label>
+        <label>Модель</label>
         <select disabled className="model-select">
-          <option>No models available</option>
+          <option>Нет добавленных моделей</option>
         </select>
       </div>
     );
@@ -22,13 +22,16 @@ export function ModelSelector() {
 
   return (
     <div className="model-selector">
-      <label htmlFor="model-select">Model:</label>
+      <label htmlFor="model-select">Модель</label>
       <select
         id="model-select"
-        value={currentModelId || ""}
+        value={currentModelId ?? ""}
         onChange={(e) => setCurrentModel(Number(e.target.value))}
         className="model-select"
       >
+        <option value="" disabled>
+          Выберите модель
+        </option>
         {models.map((model: Model) => (
           <option key={model.id} value={model.id}>
             {model.name} ({model.provider})

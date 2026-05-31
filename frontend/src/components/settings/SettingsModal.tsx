@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { addModel } from "../../api";
 import { useChat } from "../../context/ChatContext";
 
 export function SettingsModal({
@@ -11,11 +11,11 @@ export function SettingsModal({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
-  const { user } = useAuth();
-  const { loadModels } = useChat();
+  const { loadModels, setCurrentModel } = useChat();
   const [modelName, setModelName] = useState("");
   const [provider, setProvider] = useState("openai-compatible");
   const [apiOrIP, setApiOrIP] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -28,34 +28,33 @@ export function SettingsModal({
 
     try {
       const token = localStorage.getItem("llm-token");
-      const response = await fetch("http://localhost:3000/user/add-model", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: modelName,
-          apiOrIP,
-          provider,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to add model");
+      if (!token) {
+        throw new Error("Сессия истекла. Войдите снова.");
       }
+
+      const model = await addModel(token, {
+        name: modelName.trim(),
+        apiOrIP: apiOrIP.trim(),
+        provider,
+        apiKey: apiKey.trim() || undefined,
+      });
 
       setModelName("");
       setApiOrIP("");
+      setApiKey("");
       setProvider("openai-compatible");
       await loadModels();
+      await setCurrentModel(model.id);
+
       if (onSuccess) {
         onSuccess();
       } else {
         onClose();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(
+        err instanceof Error ? err.message : "Не удалось добавить модель.",
+      );
     } finally {
       setLoading(false);
     }
@@ -67,7 +66,7 @@ export function SettingsModal({
         <div className="settings-header">
           <h2>Настройки</h2>
           <button onClick={onClose} className="settings-close">
-            х
+            ×
           </button>
         </div>
 
@@ -76,12 +75,12 @@ export function SettingsModal({
             <h3>Добавить новую модель</h3>
             <form onSubmit={handleAddModel} className="model-form">
               <div className="form-group">
-                <label>Имя модели</label>
+                <label>Название модели</label>
                 <input
                   type="text"
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
-                  placeholder="e.g., GPT-4, Claude, Mistral"
+                  placeholder="Например: gpt-4o-mini, qwen2.5"
                   required
                 />
               </div>
@@ -105,15 +104,26 @@ export function SettingsModal({
                   type="text"
                   value={apiOrIP}
                   onChange={(e) => setApiOrIP(e.target.value)}
-                  placeholder="https://api.openai.com/v1 or localhost:11434"
+                  placeholder="https://api.openai.com/v1"
                   required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>API key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  autoComplete="off"
                 />
               </div>
 
               {error && <div className="form-error">{error}</div>}
 
               <button type="submit" disabled={loading} className="form-submit">
-                {loading ? "Adding..." : "Добавить"}
+                {loading ? "Добавляем..." : "Добавить"}
               </button>
             </form>
           </div>

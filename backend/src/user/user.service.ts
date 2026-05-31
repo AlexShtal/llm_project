@@ -25,14 +25,31 @@ export class UserService {
       throw new ConflictException('Модель с таким названием уже существует');
     }
 
-    return this.prisma.model.create({
-      data: {
-        userId,
-        name: dto.name,
-        apiOrIP: dto.apiOrIP,
-        description: dto.description,
-        provider: dto.provider,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const model = await tx.model.create({
+        data: {
+          userId,
+          name: dto.name,
+          apiOrIP: dto.apiOrIP,
+          description: dto.description,
+          provider: dto.provider,
+          providerConfig: dto.apiKey ? { apiKey: dto.apiKey } : undefined,
+        },
+      });
+
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { currentModelId: true },
+      });
+
+      if (!user?.currentModelId) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { currentModelId: model.id },
+        });
+      }
+
+      return model;
     });
   }
 

@@ -3,9 +3,24 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ChatProvider, useChat } from "./context/ChatContext";
 import { AuthForm } from "./components/auth/AuthForm";
 import { MainLayout } from "./components/layout/MainLayout";
+import { getProfile } from "./api";
 import "./styles/index.css";
 
 function AppContent() {
+  const { token } = useAuth();
+
+  if (!token) {
+    return <AuthForm />;
+  }
+
+  return (
+    <ChatProvider token={token}>
+      <AuthenticatedApp />
+    </ChatProvider>
+  );
+}
+
+function AuthenticatedApp() {
   const { token, user, setUser } = useAuth();
   const { setError: setChatError } = useChat();
 
@@ -13,24 +28,18 @@ function AppContent() {
     if (token && !user) {
       const fetchUser = async () => {
         try {
-          const response = await fetch("http://localhost:3000/user", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          }
+          setUser(await getProfile(token));
         } catch (err) {
-          setChatError("Failed to load user data");
+          setChatError(
+            err instanceof Error
+              ? err.message
+              : "Не удалось загрузить данные пользователя.",
+          );
         }
       };
       fetchUser();
     }
   }, [token, user, setUser, setChatError]);
-
-  if (!token) {
-    return <AuthForm />;
-  }
 
   return <MainLayout />;
 }
@@ -38,9 +47,7 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <ChatProvider token={localStorage.getItem("llm-token")}>
-        <AppContent />
-      </ChatProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

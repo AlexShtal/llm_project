@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { login as loginRequest, register as registerRequest } from "../api";
 
 export interface AuthUser {
   id: number;
   email: string;
-  username?: string;
-  avatarUrl?: string;
+  username?: string | null;
+  avatarUrl?: string | null;
   role?: string;
 }
 
@@ -35,17 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:3000/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Login failed");
-      }
-
-      const data = await response.json();
+      const data = await loginRequest(email, password);
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem("llm-token", data.access_token);
@@ -58,17 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string, username: string, password: string) => {
       setIsLoading(true);
       try {
-        const response = await fetch("http://localhost:3000/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, username, password }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Registration failed");
-        }
-
-        const data = await response.json();
+        const data = await registerRequest(email, username, password);
         setToken(data.access_token);
         setUser(data.user);
         localStorage.setItem("llm-token", data.access_token);

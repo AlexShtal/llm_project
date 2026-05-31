@@ -20,7 +20,9 @@ export function AuthForm() {
         await register(email, username, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(
+        err instanceof Error ? err.message : "Не удалось выполнить вход.",
+      );
     }
   };
 

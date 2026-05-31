@@ -16,23 +16,11 @@ export class OpenAICompatibleProvider implements ILLMProvider {
     if (!config.endpoint) {
       throw new BadRequestException('OpenAI endpoint is required');
     }
-    if (!config.apiKey) {
-      throw new BadRequestException('OpenAI API key is required');
-    }
     if (!config.modelId) {
       throw new BadRequestException('Model ID is required');
     }
 
-    try {
-      const headers = this.getRequestHeaders(config);
-      const response = await fetch(new URL(this.getEndpoint(config)), {
-        method: 'HEAD',
-        headers,
-      });
-      return response.ok || response.status === 404;
-    } catch {
-      throw new BadRequestException('Failed to connect to OpenAI endpoint');
-    }
+    return true;
   }
 
   generateRequest(
@@ -84,17 +72,26 @@ export class OpenAICompatibleProvider implements ILLMProvider {
   }
 
   getRequestHeaders(config: ProviderConfig): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
     };
+
+    if (config.apiKey) {
+      headers.Authorization = `Bearer ${config.apiKey}`;
+    }
+
+    if (String(config.endpoint).includes('ngrok-free.app')) {
+      headers['ngrok-skip-browser-warning'] = 'true';
+    }
+
+    return headers;
   }
 
   getEndpoint(config: ProviderConfig): string {
-    const endpoint = config.endpoint as string;
-    if (endpoint.endsWith('/')) {
-      return endpoint + 'chat/completions';
+    const endpoint = (config.endpoint as string).replace(/\/+$/, '');
+    if (endpoint.endsWith('/chat/completions')) {
+      return endpoint;
     }
-    return endpoint + '/chat/completions';
+    return `${endpoint}/chat/completions`;
   }
 }
