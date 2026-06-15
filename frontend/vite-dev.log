@@ -1,0 +1,11 @@
+
+> llm-project-frontend@0.1.0 dev
+> vite --host 127.0.0.1
+
+
+  VITE v7.3.3  ready in 350 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+17:43:26 [vite] (client) page reload index.html
+17:44:16 [vite] (client) page reload index.html
+17:46:16 [vite] (client) page reload index.html

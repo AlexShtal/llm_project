@@ -84,42 +84,41 @@ export function ChatProvider({
     setError(null);
   }, []);
 
-  const appendUserMessage = useCallback(
-    (content: string, chatId?: number) => {
-      const tempId = -Date.now();
-      const tempMessage: Message = {
-        id: tempId,
-        role: "user",
-        content,
-        createdAt: new Date().toISOString(),
-      };
+  const appendUserMessage = useCallback((content: string, chatId?: number) => {
+    const tempId = -Date.now();
+    const tempMessage: Message = {
+      id: tempId,
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    };
 
-      setActiveChatState((chat) => {
-        if (chat && chat.id === chatId) {
-          const updated = {
-            ...chat,
-            messages: [...chat.messages, tempMessage],
-          };
-          setChats((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-          return updated;
-        }
+    setActiveChatState((chat) => {
+      if (chat && chat.id === chatId) {
+        const updated = {
+          ...chat,
+          messages: [...chat.messages, tempMessage],
+        };
+        setChats((prev) =>
+          prev.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        return updated;
+      }
 
-        if (!chat && !chatId) {
-          const tempChat: Chat = {
-            id: tempId,
-            title: "Новый чат",
-            createdAt: new Date().toISOString(),
-            messages: [tempMessage],
-          };
-          setChats((prev) => [tempChat, ...prev]);
-          return tempChat;
-        }
+      if (!chat && !chatId) {
+        const tempChat: Chat = {
+          id: tempId,
+          title: "Новый чат",
+          createdAt: new Date().toISOString(),
+          messages: [tempMessage],
+        };
+        setChats((prev) => [tempChat, ...prev]);
+        return tempChat;
+      }
 
-        return chat;
-      });
-    },
-    [],
-  );
+      return chat;
+    });
+  }, []);
 
   const persistCurrentModel = useCallback(
     async (modelId: number) => {
@@ -141,7 +140,12 @@ export function ChatProvider({
       const data = await getChats(token);
       setChats(data.map(mapChat));
     } catch (err) {
-      setError(getErrorMessage(err, "Не удалось загрузить чаты."));
+      setError(
+        getErrorMessage(
+          err,
+          "Не удалось загрузить чаты.",
+        ),
+      );
     } finally {
       setIsLoadingChats(false);
     }
@@ -154,7 +158,10 @@ export function ChatProvider({
       const data = await getMyModels(token);
       const nextModels = (data.models || []).map(mapModel);
       const nextCurrentModelId =
-        data.currentModelId ?? data.currentModel?.id ?? nextModels[0]?.id ?? null;
+        data.currentModelId ??
+        data.currentModel?.id ??
+        nextModels[0]?.id ??
+        null;
 
       setModels(nextModels);
       setCurrentModelId(nextCurrentModelId);
@@ -163,7 +170,12 @@ export function ChatProvider({
         await persistCurrentModel(nextCurrentModelId);
       }
     } catch (err) {
-      setError(getErrorMessage(err, "Не удалось загрузить модели."));
+      setError(
+        getErrorMessage(
+          err,
+          "Не удалось загрузить модели.",
+        ),
+      );
     } finally {
       setIsLoadingModels(false);
     }
@@ -206,7 +218,9 @@ export function ChatProvider({
       const cleanTitle = title.trim();
       if (!token || !cleanTitle) return;
 
-      const updated = mapChat(await updateChatRequest(token, chatId, cleanTitle));
+      const updated = mapChat(
+        await updateChatRequest(token, chatId, cleanTitle),
+      );
       setChats((prev) =>
         prev.map((chat) => (chat.id === chatId ? updated : chat)),
       );
@@ -221,7 +235,9 @@ export function ChatProvider({
 
       const modelId = currentModelId ?? models[0]?.id ?? null;
       if (!modelId) {
-        setError("Сначала добавьте и выберите модель.");
+        setError(
+          "Сначала добавьте и выберите модель.",
+        );
         return;
       }
 
@@ -242,7 +258,12 @@ export function ChatProvider({
             : [chat, ...prev];
         });
       } catch (err) {
-        setError(getErrorMessage(err, "Не удалось получить ответ от модели."));
+        setError(
+          getErrorMessage(
+            err,
+            "Не удалось получить ответ от модели.",
+          ),
+        );
       } finally {
         setIsGenerating(false);
       }
@@ -262,7 +283,12 @@ export function ChatProvider({
         await setCurrentModelRequest(token, modelId);
       } catch (err) {
         setCurrentModelId(previousModelId);
-        setError(getErrorMessage(err, "Не удалось выбрать модель."));
+        setError(
+          getErrorMessage(
+            err,
+            "Не удалось выбрать модель.",
+          ),
+        );
       }
     },
     [token, currentModelId],

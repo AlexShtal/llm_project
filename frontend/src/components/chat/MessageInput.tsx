@@ -32,7 +32,9 @@ export function MessageInput() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={
-            hasUsableModel ? "Задайте вопрос..." : "Сначала добавьте и выберите модель"
+            hasUsableModel
+              ? "Задайте вопрос..."
+              : "Сначала добавьте и выберите модель"
           }
           disabled={isDisabled}
           className="message-input"
